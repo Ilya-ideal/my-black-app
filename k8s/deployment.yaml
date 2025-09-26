@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-black-app
+  labels:
+    app: my-black-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-black-app
+  template:
+    metadata:
+      labels:
+        app: my-black-app
+    spec:
+      containers:
+      - name: app
+        image: your-dockerhub-username/my-black-app:latest  # Будет заменен в пайплайне
+        ports:
+        - containerPort: 5000
+        env:
+        - name: APP_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: app.version
+        # Секреты будут смонтированы здесь
+        envFrom:
+        - secretRef:
+            name: app-secrets
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  app.version: "1.0.0"
