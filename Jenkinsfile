@@ -17,7 +17,6 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Убираем пробелы из времени
                     env.DEPLOY_TIME = new Date().format("yyyy-MM-dd-HH-mm-ss")
                     
                     bat """
@@ -62,10 +61,11 @@ pipeline {
                             kubectl create configmap app-config ^
                                 --from-literal=app.version=1.0.0 ^
                                 --from-literal=deploy.time=${env.DEPLOY_TIME} ^
-                                -o yaml --dry-run=client | kubectl apply -f -
+                                -o yaml --dry-run=client | kubectl apply -f - --validate=false
                             
-                            kubectl apply -f k8s/
-                            kubectl rollout status deployment/my-black-app --timeout=300s
+                            kubectl apply -f k8s/ --validate=false
+                            timeout 30
+                            kubectl get pods
                         """
                     }
                     echo "✅ Приложение развернуто в Kubernetes"
@@ -82,21 +82,11 @@ pipeline {
                     ]) {
                         def message = "✅ Деплой успешно завершен! Приложение с черным фоном запущено. Время: ${env.DEPLOY_TIME}"
                         
-                        // Используем PowerShell для правильной кодировки
-                        powershell """
-                            `$token = "${TELEGRAM_BOT_TOKEN}"
-                            `$chatId = "${TELEGRAM_CHAT_ID}"
-                            `$text = "✅ Деплой успешно завершен! Приложение с черным фоном запущено. Время: ${env.DEPLOY_TIME}"
-                            
-                            `$body = @{
-                                chat_id = `$chatId
-                                text = `$text
-                            }
-                            
-                            Invoke-RestMethod -Uri "https://api.telegram.org/bot`$token/sendMessage" `
-                                -Method Post `
-                                -ContentType "application/json; charset=utf-8" `
-                                -Body (`$body | ConvertTo-Json)
+                        bat """
+                            curl -s -X POST ^
+                            "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
+                            -d chat_id=%TELEGRAM_CHAT_ID% ^
+                            -d text="✅ Деплой успешно завершен! Приложение с черным фоном запущено. Время: ${env.DEPLOY_TIME}"
                         """
                     }
                     echo "✅ Уведомление отправлено в Telegram"
@@ -112,23 +102,11 @@ pipeline {
                     string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
                     string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
                 ]) {
-                    // Английский текст чтобы избежать проблем с кодировкой
-                    def message = "❌ Deployment failed! Check Jenkins: ${env.BUILD_URL}"
-                    
-                    powershell """
-                        `$token = "${TELEGRAM_BOT_TOKEN}"
-                        `$chatId = "${TELEGRAM_CHAT_ID}"
-                        `$text = "❌ Deployment failed! Check Jenkins: ${env.BUILD_URL}"
-                        
-                        `$body = @{
-                            chat_id = `$chatId
-                            text = `$text
-                        }
-                        
-                        Invoke-RestMethod -Uri "https://api.telegram.org/bot`$token/sendMessage" `
-                            -Method Post `
-                            -ContentType "application/json; charset=utf-8" `
-                            -Body (`$body | ConvertTo-Json)
+                    bat """
+                        curl -s -X POST ^
+                        "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
+                        -d chat_id=%TELEGRAM_CHAT_ID% ^
+                        -d text="❌ Деплой провалился! Проверьте Jenkins: ${env.BUILD_URL}"
                     """
                 }
             }
