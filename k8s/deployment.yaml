@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: my-black-app
+  namespace: my-black-app
   labels:
     app: my-black-app
 spec:
@@ -16,7 +17,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: your-dockerhub-username/my-black-app:latest  # Будет заменен в пайплайне
+        image: ilia2014a/my-black-app:latest
         ports:
         - containerPort: 5000
         env:
@@ -25,14 +26,24 @@ spec:
             configMapKeyRef:
               name: app-config
               key: app.version
-        # Секреты будут смонтированы здесь
-        envFrom:
-        - secretRef:
-            name: app-secrets
+        - name: DEPLOY_TIME
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: deploy.time
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: app-config
+  namespace: my-black-app
 data:
   app.version: "1.0.0"
+  deploy.time: "placeholder"

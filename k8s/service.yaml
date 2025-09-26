@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: my-black-app-service
+  namespace: my-black-app
 spec:
   selector:
     app: my-black-app
@@ -9,4 +10,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 5000
-  type: ClusterIP  # Для доступа извне через Ingress
+  type: LoadBalancer
