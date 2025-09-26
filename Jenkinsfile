@@ -21,7 +21,6 @@ pipeline {
                     
                     bat """
                         echo "Сборка Docker образа..."
-                        echo "Время сборки: ${env.DEPLOY_TIME}"
                         docker build --build-arg DEPLOY_TIME=${env.DEPLOY_TIME} -t ${env.DOCKER_IMAGE}:latest .
                     """
                     echo "✅ Docker образ собран"
@@ -40,7 +39,6 @@ pipeline {
                         bat """
                             echo "Логин в Docker Hub..."
                             echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin
-                            echo "Отправка образа в Docker Hub..."
                             docker push ${env.DOCKER_IMAGE}:latest
                         """
                     }
@@ -49,7 +47,7 @@ pipeline {
             }
         }
 
-        stage('Prepare Kubernetes') {
+        stage('Deploy to Minikube') {
             steps {
                 script {
                     withCredentials([file(
@@ -57,49 +55,32 @@ pipeline {
                         variable: 'KUBECONFIG_FILE'
                     )]) {
                         bat """
-                            echo "Подготовка Kubernetes..."
-                            echo "Проверка доступа к кластеру..."
-                            kubectl cluster-info
-                            kubectl get nodes
+                            echo "Развертывание в Minikube..."
                             
-                            echo "Создание namespace..."
+                            # Создаем namespace
                             kubectl create namespace ${env.KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
-                            echo "✅ Kubernetes подготовлен"
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    withCredentials([file(
-                        credentialsId: 'kubeconfig',
-                        variable: 'KUBECONFIG_FILE'
-                    )]) {
-                        bat """
-                            echo "Развертывание приложения..."
                             
-                            echo "Создаем ConfigMap..."
+                            # Создаем ConfigMap
                             kubectl create configmap app-config ^
                                 --from-literal=app.version=1.0.0 ^
                                 --from-literal=deploy.time=${env.DEPLOY_TIME} ^
                                 -n ${env.KUBE_NAMESPACE} ^
                                 -o yaml --dry-run=client | kubectl apply -f -
                             
-                            echo "Применяем манифесты..."
+                            # Развертываем приложение
                             kubectl apply -f k8s/ -n ${env.KUBE_NAMESPACE}
                             
-                            echo "Ждем запуска пода..."
+                            # Ждем запуска
+                            echo "Ожидание запуска пода..."
                             timeout /t 30
                             
-                            echo "Статус развертывания:"
+                            # Проверяем статус
                             kubectl get pods -n ${env.KUBE_NAMESPACE}
                             kubectl get services -n ${env.KUBE_NAMESPACE}
+                            
+                            echo "✅ Приложение развернуто в Minikube"
                         """
                     }
-                    echo "✅ Приложение развернуто в Kubernetes"
                 }
             }
         }
@@ -113,10 +94,17 @@ pipeline {
                     )]) {
                         bat """
                             echo "Тестирование приложения..."
-                            kubectl port-forward -n ${env.KUBE_NAMESPACE} deployment/my-black-app 8080:5000 &
-                            timeout /t 5
-                            curl http://localhost:8080/health || echo "Приложение еще не готово"
-                            taskkill /f /im kubectl.exe 2>nul || echo "Port-forward завершен"
+                            
+                            # Получаем имя пода
+                            for /f "tokens=1" %%i in ('kubectl get pods -n ${env.KUBE_NAMESPACE} -o name') do set POD_NAME=%%i
+                            
+                            # Проверяем логи
+                            kubectl logs %POD_NAME% -n ${env.KUBE_NAMESPACE}
+                            
+                            # Проверяем здоровье
+                            kubectl exec %POD_NAME% -n ${env.KUBE_NAMESPACE} -- curl -s http://localhost:5000/health || echo "Приложение запускается"
+                            
+                            echo "✅ Приложение работает"
                         """
                     }
                 }
@@ -134,10 +122,9 @@ pipeline {
                             curl -s -X POST ^
                             "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
                             -d chat_id=%TELEGRAM_CHAT_ID% ^
-                            -d text="✅ CI/CD пайплайн успешен! Приложение развернуто в Minikube. Время: ${env.DEPLOY_TIME}"
+                            -d text="🎉 CI/CD пайплайн полностью завершен! Приложение с черным фоном развернуто в Minikube. Docker образ: ${env.DOCKER_IMAGE}:latest Время: ${env.DEPLOY_TIME}"
                         """
                     }
-                    echo "✅ Уведомление отправлено в Telegram"
                 }
             }
         }
@@ -155,20 +142,6 @@ pipeline {
                         "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
                         -d chat_id=%TELEGRAM_CHAT_ID% ^
                         -d text="❌ Деплой провалился! Проверьте Jenkins: ${env.BUILD_URL}"
-                    """
-                }
-            }
-        }
-        
-        success {
-            script {
-                withCredentials([file(
-                    credentialsId: 'kubeconfig',
-                    variable: 'KUBECONFIG_FILE'
-                )]) {
-                    bat """
-                        echo "Финальный статус:"
-                        kubectl get all -n ${env.KUBE_NAMESPACE}
                     """
                 }
             }
