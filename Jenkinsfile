@@ -6,7 +6,7 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
         TELEGRAM_BOT_TOKEN = credentials('telegram-bot-token')
         TELEGRAM_CHAT_ID = credentials('telegram-chat-id')
-        DOCKER_IMAGE = 'your-dockerhub-username/my-black-app'
+        DOCKER_IMAGE = 'ilia2014a/my-black-app'
         KUBE_CONFIG = credentials('kubeconfig') // Конфиг для доступа к Kubernetes
     }
 
