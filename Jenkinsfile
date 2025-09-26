@@ -10,19 +10,19 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "✅ Репозиторий склонирован"
+                bat 'echo "✅ Репозиторий склонирован"'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Устанавливаем время сборки
-                    env.DEPLOY_TIME = new Date().format("yyyy-MM-dd HH:mm:ss")
+                    // Убираем пробелы из времени
+                    env.DEPLOY_TIME = new Date().format("yyyy-MM-dd-HH-mm-ss")
                     
-                    // Для Windows используем bat вместо sh
                     bat """
                         echo "Сборка Docker образа..."
+                        echo "Время сборки: ${env.DEPLOY_TIME}"
                         docker build --build-arg DEPLOY_TIME=${env.DEPLOY_TIME} -t ${env.DOCKER_IMAGE}:latest .
                     """
                     echo "✅ Docker образ собран"
@@ -40,7 +40,7 @@ pipeline {
                     )]) {
                         bat """
                             echo "Логин в Docker Hub..."
-                            docker login -u %DOCKER_USERNAME% -p %DOCKER_PASSWORD%
+                            echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin
                             echo "Отправка образа в Docker Hub..."
                             docker push ${env.DOCKER_IMAGE}:latest
                         """
@@ -57,12 +57,11 @@ pipeline {
                         credentialsId: 'kubeconfig',
                         variable: 'KUBECONFIG_FILE'
                     )]) {
-                        // Обновляем время деплоя в ConfigMap
                         bat """
                             echo "Развертывание в Kubernetes..."
                             kubectl create configmap app-config ^
                                 --from-literal=app.version=1.0.0 ^
-                                --from-literal=deploy.time=\"${env.DEPLOY_TIME}\" ^
+                                --from-literal=deploy.time=${env.DEPLOY_TIME} ^
                                 -o yaml --dry-run=client | kubectl apply -f -
                             
                             kubectl apply -f k8s/
@@ -83,11 +82,21 @@ pipeline {
                     ]) {
                         def message = "✅ Деплой успешно завершен! Приложение с черным фоном запущено. Время: ${env.DEPLOY_TIME}"
                         
-                        bat """
-                            curl -s -X POST ^
-                            "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                            -d chat_id=%TELEGRAM_CHAT_ID% ^
-                            -d text="${message}"
+                        // Используем PowerShell для правильной кодировки
+                        powershell """
+                            `$token = "${TELEGRAM_BOT_TOKEN}"
+                            `$chatId = "${TELEGRAM_CHAT_ID}"
+                            `$text = "✅ Деплой успешно завершен! Приложение с черным фоном запущено. Время: ${env.DEPLOY_TIME}"
+                            
+                            `$body = @{
+                                chat_id = `$chatId
+                                text = `$text
+                            }
+                            
+                            Invoke-RestMethod -Uri "https://api.telegram.org/bot`$token/sendMessage" `
+                                -Method Post `
+                                -ContentType "application/json; charset=utf-8" `
+                                -Body (`$body | ConvertTo-Json)
                         """
                     }
                     echo "✅ Уведомление отправлено в Telegram"
@@ -103,13 +112,23 @@ pipeline {
                     string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
                     string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
                 ]) {
-                    def message = "❌ Деплой провалился! Проверьте Jenkins: ${env.BUILD_URL}"
+                    // Английский текст чтобы избежать проблем с кодировкой
+                    def message = "❌ Deployment failed! Check Jenkins: ${env.BUILD_URL}"
                     
-                    bat """
-                        curl -s -X POST ^
-                        "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                        -d chat_id=%TELEGRAM_CHAT_ID% ^
-                        -d text="${message}"
+                    powershell """
+                        `$token = "${TELEGRAM_BOT_TOKEN}"
+                        `$chatId = "${TELEGRAM_CHAT_ID}"
+                        `$text = "❌ Deployment failed! Check Jenkins: ${env.BUILD_URL}"
+                        
+                        `$body = @{
+                            chat_id = `$chatId
+                            text = `$text
+                        }
+                        
+                        Invoke-RestMethod -Uri "https://api.telegram.org/bot`$token/sendMessage" `
+                            -Method Post `
+                            -ContentType "application/json; charset=utf-8" `
+                            -Body (`$body | ConvertTo-Json)
                     """
                 }
             }
