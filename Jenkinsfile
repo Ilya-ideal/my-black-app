@@ -1,3 +1,9 @@
+properties([
+    pipelineTriggers([
+        pollSCM('H/2 * * * *')  // Автоматическая проверка каждые 2 минуты
+    ])
+])
+
 pipeline {
     agent any
 
@@ -7,10 +13,25 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Auto-Detect GitHub Changes') {
             steps {
+                script {
+                    echo "🔍 АВТОМАТИЧЕСКАЯ ПРОВЕРКА ИЗМЕНЕНИЙ В GITHUB"
+                    echo "Время запуска: ${new Date()}"
+                    echo "Причина сборки: ${currentBuild.getBuildCauses()}"
+                    
+                    // Детектим изменения
+                    bat '''
+                        echo "=== ПРОВЕРКА ИЗМЕНЕНИЙ ==="
+                        git fetch origin
+                        echo "Последние коммиты:"
+                        git log --oneline -3
+                        echo "Новые коммиты в remote:"
+                        git log HEAD..origin/master --oneline
+                    '''
+                }
                 checkout scm
-                bat 'echo "✅ Репозиторий склонирован"'
+                bat 'echo "✅ Репозиторий автоматически обновлен по расписанию Poll SCM!"'
             }
         }
 
@@ -179,26 +200,29 @@ pipeline {
                         curl -s -X POST ^
                         "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
                         -d chat_id=%TELEGRAM_CHAT_ID% ^
-                        -d text="🎉 ENHANCED CI/CD SUCCESS! 
+                        -d text="🤖 АВТОМАТИЧЕСКАЯ СБОРКА УСПЕШНА! 
 🚀 Version: ${env.APP_VERSION} 
 📦 Image: ${env.DOCKER_IMAGE} 
 ✅ Security checks passed 
 📊 Monitoring enabled 
 ❤️  Health checks working 
 🕒 Time: ${env.DEPLOY_TIME}
+⚡ Trigger: Poll SCM
                         
 📈 New Features:
 • System metrics dashboard
 • Prometheus metrics endpoint  
 • Enhanced health monitoring
 • Structured logging
-• Security improvements"
+• Security improvements
+• Auto-build on GitHub changes"
                     """
                 }
             }
             
             bat """
-                echo "=== ENHANCED CI/CD PIPELINE SUMMARY ==="
+                echo "=== AUTOMATED CI/CD PIPELINE SUMMARY ==="
+                echo "✅ Auto GitHub changes detection"
                 echo "✅ Code structure validation"
                 echo "✅ Basic security scanning" 
                 echo "✅ Enhanced Docker image built"
@@ -208,7 +232,7 @@ pipeline {
                 echo "✅ Monitoring setup completed"
                 echo "✅ Health checks implemented"
                 echo "✅ Telegram notifications"
-                echo "🎉 ALL ENHANCEMENTS SUCCESSFULLY DEPLOYED!"
+                echo "🎉 FULLY AUTOMATED PIPELINE SUCCESS!"
             """
         }
 
@@ -222,7 +246,7 @@ pipeline {
                         curl -s -X POST ^
                         "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
                         -d chat_id=%TELEGRAM_CHAT_ID% ^
-                        -d text="❌ ENHANCED CI/CD FAILED! Check Jenkins: ${env.BUILD_URL}"
+                        -d text="❌ AUTOMATED CI/CD FAILED! Check Jenkins: ${env.BUILD_URL}"
                     """
                 }
             }
