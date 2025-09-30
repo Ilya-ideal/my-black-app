@@ -16,11 +16,10 @@ pipeline {
         stage('Auto-Detect GitHub Changes') {
             steps {
                 script {
-                    echo "🔍 АВТОМАТИЧЕСКАЯ ПРОВЕРКА ИЗМЕНЕНИЙ В GITHUB"
+                    echo "АВТОМАТИЧЕСКАЯ ПРОВЕРКА ИЗМЕНЕНИЙ В GITHUB"
                     echo "Время запуска: ${new Date()}"
                     echo "Причина сборки: ${currentBuild.getBuildCauses()}"
                     
-                    // Детектим изменения
                     bat '''
                         echo "=== ПРОВЕРКА ИЗМЕНЕНИЙ ==="
                         git fetch origin
@@ -31,7 +30,7 @@ pipeline {
                     '''
                 }
                 checkout scm
-                bat 'echo "✅ Репозиторий автоматически обновлен по расписанию Poll SCM!"'
+                bat 'echo "РЕПОЗИТОРИЙ АВТОМАТИЧЕСКИ ОБНОВЛЕН ПО РАСПИСАНИЮ POLL SCM!"'
             }
         }
 
@@ -39,7 +38,7 @@ pipeline {
             steps {
                 script {
                     bat """
-                        echo "🔧 ПРОВЕРКА DOCKER ОКРУЖЕНИЯ"
+                        echo "ПРОВЕРКА DOCKER ОКРУЖЕНИЯ"
                         echo "Проверка Docker daemon..."
                         docker version || echo "Docker не доступен"
                         
@@ -70,7 +69,7 @@ pipeline {
                         type requirements.txt
                         echo "Requirements проверены"
                     """
-                    echo "✅ Базовая проверка кода завершена"
+                    echo "БАЗОВАЯ ПРОВЕРКА КОДА ЗАВЕРШЕНА"
                 }
             }
         }
@@ -86,7 +85,7 @@ pipeline {
                         echo "Проверка локального Docker образа..."
                         docker images | findstr "${env.DOCKER_IMAGE}" && echo "Локальный образ найден" || echo "Локальный образ не найден"
                     """
-                    echo "✅ Базовая проверка безопасности завершена"
+                    echo "БАЗОВАЯ ПРОВЕРКА БЕЗОПАСНОСТИ ЗАВЕРШЕНА"
                 }
             }
         }
@@ -96,42 +95,18 @@ pipeline {
                 script {
                     env.DEPLOY_TIME = new Date().format("yyyy-MM-dd-HH-mm-ss")
                     
-                    // Пробуем собрать образ с retry
                     bat """
-                        echo "🔄 Сборка Docker образа (попытка с retry)..."
+                        echo "СБОРКА DOCKER ОБРАЗА (ПОПЫТКА С RETRY)..."
                         echo "Время сборки: ${env.DEPLOY_TIME}"
                         
-                        set MAX_RETRIES=3
-                        set RETRY_COUNT=0
-                        set BUILD_SUCCESS=0
-                        
-                        :retry_build
-                        echo "Попытка сборки #%RETRY_COUNT%"
-                        docker build --build-arg DEPLOY_TIME=${env.DEPLOY_TIME} --build-arg APP_VERSION=${env.APP_VERSION} -t ${env.DOCKER_IMAGE}:latest -t ${env.DOCKER_IMAGE}:${env.APP_VERSION} . && (
-                            echo "✅ Сборка успешна!" 
-                            set BUILD_SUCCESS=1
-                            goto build_complete
-                        ) || (
-                            echo "❌ Сборка не удалась"
-                            set /a RETRY_COUNT+=1
-                            if %RETRY_COUNT% leq %MAX_RETRIES% (
-                                echo "Повторная попытка через 10 секунд..."
-                                timeout /t 10
-                                goto retry_build
-                            ) else (
-                                echo "❌ Все попытки сборки провалились"
-                                exit 1
-                            )
-                        )
-                        
-                        :build_complete
+                        docker build --build-arg DEPLOY_TIME=${env.DEPLOY_TIME} --build-arg APP_VERSION=${env.APP_VERSION} -t ${env.DOCKER_IMAGE}:latest -t ${env.DOCKER_IMAGE}:${env.APP_VERSION} .
+                        echo "СБОРКА УСПЕШНА!"
                     """
                     
-                    // Проверяем что образ создан
                     bat """
                         echo "Проверка созданного образа..."
                         docker images | findstr "${env.DOCKER_IMAGE}"
-                        echo "✅ Docker образ успешно собран после попыток"
+                        echo "DOCKER ОБРАЗ УСПЕШНО СОБРАН"
                     """
                 }
             }
@@ -146,15 +121,15 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )]) {
                         bat """
-                            echo "🔐 Логин в Docker Hub..."
+                            echo "ЛОГИН В DOCKER HUB..."
                             echo %DOCKER_PASSWORD% | docker login -u %DOCKER_USERNAME% --password-stdin || echo "Логин не удался, продолжаем..."
                             
-                            echo "📤 Отправка образов в Docker Hub..."
+                            echo "ОТПРАВКА ОБРАЗОВ В DOCKER HUB..."
                             docker push ${env.DOCKER_IMAGE}:latest || echo "Не удалось отправить latest образ"
                             docker push ${env.DOCKER_IMAGE}:${env.APP_VERSION} || echo "Не удалось отправить версию ${env.APP_VERSION}"
                         """
                     }
-                    echo "✅ Операции с Docker Hub завершены"
+                    echo "ОПЕРАЦИИ С DOCKER HUB ЗАВЕРШЕНЫ"
                 }
             }
         }
@@ -162,7 +137,7 @@ pipeline {
         stage('Comprehensive Testing') {
             steps {
                 bat """
-                    echo "🧪 Запуск всестороннего тестирования..."
+                    echo "ЗАПУСК ВСЕСТОРОННЕГО ТЕСТИРОВАНИЯ..."
                     
                     echo "1. Останавливаем старые контейнеры..."
                     docker stop enhanced-test-app 2>nul || echo "Старый контейнер не найден"
@@ -172,10 +147,10 @@ pipeline {
                     docker run -d -p 5000:5000 --name enhanced-test-app ${env.DOCKER_IMAGE}:latest
                     
                     echo "3. Даем приложению время на запуск..."
-                    timeout /t 20
+                    timeout /t 25
                     
                     echo "4. Проверка контейнера..."
-                    docker ps | findstr "enhanced-test-app" && echo "✅ Контейнер запущен"
+                    docker ps | findstr "enhanced-test-app" && echo "КОНТЕЙНЕР ЗАПУЩЕН"
                     
                     echo "5. Проверка логов..."
                     docker logs enhanced-test-app
@@ -183,22 +158,22 @@ pipeline {
                     echo "6. Тестирование эндпоинтов..."
                     
                     echo "   - Health check:"
-                    curl -f http://localhost:5000/health && echo "✅ Health check доступен" || echo "⚠️ Health check недоступен"
+                    curl -f http://localhost:5000/health && echo "HEALTH CHECK ДОСТУПЕН" || echo "HEALTH CHECK НЕДОСТУПЕН"
                     
                     echo "   - Главная страница:"
-                    curl http://localhost:5000/ | findstr "Приложение" && echo "✅ Главная страница работает" || echo "❌ Главная страница не работает"
+                    curl http://localhost:5000/ | findstr "Приложение" && echo "ГЛАВНАЯ СТРАНИЦА РАБОТАЕТ" || echo "ГЛАВНАЯ СТРАНИЦА НЕ РАБОТАЕТ"
                     
                     echo "   - Метрики:"
-                    curl http://localhost:5000/metrics | findstr "app_memory_usage" && echo "✅ Метрики работают" || echo "❌ Метрики не работают"
+                    curl http://localhost:5000/metrics | findstr "app_memory_usage" && echo "МЕТРИКИ РАБОТАЮТ" || echo "МЕТРИКИ НЕ РАБОТАЮТ"
                     
                     echo "   - Логи:"
-                    curl http://localhost:5000/logs | findstr "logs" && echo "✅ Логи работают" || echo "❌ Логи не работают"
+                    curl http://localhost:5000/logs | findstr "logs" && echo "ЛОГИ РАБОТАЮТ" || echo "ЛОГИ НЕ РАБОТАЮТ"
                     
                     echo "7. Остановка тестового контейнера..."
                     docker stop enhanced-test-app
                     docker rm enhanced-test-app
                     
-                    echo "🎉 Все тесты пройдены успешно!"
+                    echo "ВСЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО!"
                 """
             }
         }
@@ -207,18 +182,15 @@ pipeline {
             steps {
                 script {
                     bat """
-                        echo "🚀 Развертывание в staging..."
+                        echo "РАЗВЕРТЫВАНИЕ В STAGING..."
                         docker stop staging-app 2>nul || echo "Старый staging контейнер не найден"
                         docker rm staging-app 2>nul || echo "Старый staging контейнер не найден"
                         
-                        docker run -d -p 8080:5000 --name staging-app ${env.DOCKER_IMAGE}:latest
-                        echo "Staging приложение запущено на порту 8080"
+                        docker run -d -p 8082:5000 --name staging-app ${env.DOCKER_IMAGE}:latest
+                        echo "STAGING ПРИЛОЖЕНИЕ ЗАПУЩЕНО НА ПОРТУ 8082"
                         
                         timeout /t 10
-                        docker ps | findstr "staging-app" && echo "✅ Staging контейнер запущен" || echo "❌ Staging контейнер не запущен"
-                        
-                        echo "Проверка staging:"
-                        curl http://localhost:8080/health && echo "✅ Staging приложение работает" || echo "❌ Staging приложение не доступно"
+                        docker ps | findstr "staging-app" && echo "STAGING КОНТЕЙНЕР ЗАПУЩЕН" || echo "STAGING КОНТЕЙНЕР НЕ ЗАПУЩЕН"
                     """
                 }
             }
@@ -227,11 +199,11 @@ pipeline {
         stage('Monitoring and Health Setup') {
             steps {
                 bat """
-                    echo "📊 Настройка мониторинга..."
+                    echo "НАСТРОЙКА МОНИТОРИНГА..."
                     echo "Доступные эндпоинты:"
                     echo "• Health: http://localhost:5000/health"
                     echo "• Главная: http://localhost:5000/"
-                    echo "• Staging: http://localhost:8080/"
+                    echo "• Staging: http://localhost:8082/"
                     
                     echo "Создание конфигурации мониторинга..."
                     echo "APPLICATION_STATUS=active" > app-status.txt
@@ -247,16 +219,12 @@ pipeline {
     post {
         always {
             bat """
-                echo "🧹 Очистка ресурсов..."
+                echo "ОЧИСТКА РЕСУРСОВ..."
                 docker stop enhanced-test-app 2>nul || echo "Тестовый контейнер не найден"
                 docker rm enhanced-test-app 2>nul || echo "Тестовый контейнер не найден"
                 docker stop staging-app 2>nul || echo "Staging контейнер не найден" 
                 docker rm staging-app 2>nul || echo "Staging контейнер не найден"
                 del app-status.txt 2>nul || echo "Файл не найден"
-                
-                echo "Проверка портов..."
-                netstat -an | findstr ":5000" || echo "✅ Порт 5000 свободен"
-                netstat -an | findstr ":8080" || echo "✅ Порт 8080 свободен"
             """
         }
 
@@ -267,33 +235,10 @@ pipeline {
                     string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
                 ]) {
                     bat """
-                        curl -s -X POST ^
-                        "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                        -d chat_id=%TELEGRAM_CHAT_ID% ^
-                        -d text="🎉 АВТОМАТИЧЕСКАЯ СБОРКА УСПЕШНА! 
-📦 Образ: ${env.DOCKER_IMAGE}:${env.APP_VERSION}
-✅ Все тесты пройдены
-🚀 Staging развернут
-📊 Мониторинг настроен
-🕒 Время: ${env.DEPLOY_TIME}
-⚡ Триггер: Poll SCM"
+                        curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" -d chat_id=%TELEGRAM_CHAT_ID% -d text="АВТОМАТИЧЕСКАЯ СБОРКА УСПЕШНА! Образ: ${env.DOCKER_IMAGE}:${env.APP_VERSION} Все тесты пройдены. Staging развернут. Время: ${env.DEPLOY_TIME}"
                     """
                 }
             }
-            
-            bat """
-                echo "=== CI/CD PIPELINE SUMMARY ==="
-                echo "✅ Auto GitHub changes detection"
-                echo "✅ Docker environment checked" 
-                echo "✅ Code quality validated"
-                echo "✅ Security scan completed"
-                echo "✅ Docker image built"
-                echo "✅ Docker Hub operations"
-                echo "✅ Comprehensive testing"
-                echo "✅ Staging deployment"
-                echo "✅ Monitoring configured"
-                echo "🎉 FULLY AUTOMATED PIPELINE SUCCESS!"
-            """
         }
 
         failure {
@@ -303,15 +248,7 @@ pipeline {
                     string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
                 ]) {
                     bat """
-                        curl -s -X POST ^
-                        "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                        -d chat_id=%TELEGRAM_CHAT_ID% ^
-                        -d text="❌ CI/CD FAILED 
-📦 Образ: ${env.DOCKER_IMAGE}
-🔧 Проблема: Проверьте логи Jenkins
-💡 Решение: Смотрите детали в сборке
-🕒 Время: ${env.DEPLOY_TIME}
-🔗 Jenkins: ${env.BUILD_URL}"
+                        curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" -d chat_id=%TELEGRAM_CHAT_ID% -d text="CI/CD FAILED. Образ: ${env.DOCKER_IMAGE}. Проверьте логи Jenkins. Время: ${env.DEPLOY_TIME}"
                     """
                 }
             }
