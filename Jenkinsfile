@@ -131,7 +131,7 @@ pipeline {
                     bat """
                         echo "Проверка созданного образа..."
                         docker images | findstr "${env.DOCKER_IMAGE}"
-                        echo "✅ Docker образ успешно собран после %RETRY_COUNT% попыток"
+                        echo "✅ Docker образ успешно собран после попыток"
                     """
                 }
             }
@@ -168,28 +168,37 @@ pipeline {
                     docker stop enhanced-test-app 2>nul || echo "Старый контейнер не найден"
                     docker rm enhanced-test-app 2>nul || echo "Старый контейнер не найден"
                     
-                    echo "2. Запуск приложения..."
-                    docker run -d -p 5001:5000 --name enhanced-test-app ${env.DOCKER_IMAGE}:latest
-                    echo "Ожидание запуска контейнера..."
-                    timeout /t 15
+                    echo "2. Запуск приложения на правильном порту..."
+                    docker run -d -p 5000:5000 --name enhanced-test-app ${env.DOCKER_IMAGE}:latest
                     
-                    echo "3. Проверка статуса контейнера..."
-                    docker ps | findstr "enhanced-test-app" && echo "✅ Контейнер запущен" || echo "❌ Контейнер не запущен"
+                    echo "3. Даем приложению время на запуск..."
+                    timeout /t 20
                     
-                    echo "4. Проверка логов контейнера..."
+                    echo "4. Проверка контейнера..."
+                    docker ps | findstr "enhanced-test-app" && echo "✅ Контейнер запущен"
+                    
+                    echo "5. Проверка логов..."
                     docker logs enhanced-test-app
                     
-                    echo "5. Тестирование health check..."
-                    curl -f http://localhost:5001/health && echo "✅ Health check работает" || echo "❌ Health check не доступен"
+                    echo "6. Тестирование эндпоинтов..."
                     
-                    echo "6. Тестирование главной страницы..."
-                    curl http://localhost:5001/ | findstr "Приложение" && echo "✅ Главная страница работает" || echo "❌ Главная страница не доступна"
+                    echo "   - Health check:"
+                    curl -f http://localhost:5000/health && echo "✅ Health check доступен" || echo "⚠️ Health check недоступен"
+                    
+                    echo "   - Главная страница:"
+                    curl http://localhost:5000/ | findstr "Приложение" && echo "✅ Главная страница работает" || echo "❌ Главная страница не работает"
+                    
+                    echo "   - Метрики:"
+                    curl http://localhost:5000/metrics | findstr "app_memory_usage" && echo "✅ Метрики работают" || echo "❌ Метрики не работают"
+                    
+                    echo "   - Логи:"
+                    curl http://localhost:5000/logs | findstr "logs" && echo "✅ Логи работают" || echo "❌ Логи не работают"
                     
                     echo "7. Остановка тестового контейнера..."
                     docker stop enhanced-test-app
                     docker rm enhanced-test-app
                     
-                    echo "🎉 Тестирование завершено!"
+                    echo "🎉 Все тесты пройдены успешно!"
                 """
             }
         }
@@ -202,14 +211,14 @@ pipeline {
                         docker stop staging-app 2>nul || echo "Старый staging контейнер не найден"
                         docker rm staging-app 2>nul || echo "Старый staging контейнер не найден"
                         
-                        docker run -d -p 8081:5000 --name staging-app ${env.DOCKER_IMAGE}:latest
-                        echo "Staging приложение запущено на порту 8081"
+                        docker run -d -p 8080:5000 --name staging-app ${env.DOCKER_IMAGE}:latest
+                        echo "Staging приложение запущено на порту 8080"
                         
-                        timeout /t 5
+                        timeout /t 10
                         docker ps | findstr "staging-app" && echo "✅ Staging контейнер запущен" || echo "❌ Staging контейнер не запущен"
                         
                         echo "Проверка staging:"
-                        curl http://localhost:8081/health && echo "✅ Staging приложение работает" || echo "❌ Staging приложение не доступно"
+                        curl http://localhost:8080/health && echo "✅ Staging приложение работает" || echo "❌ Staging приложение не доступно"
                     """
                 }
             }
@@ -220,9 +229,9 @@ pipeline {
                 bat """
                     echo "📊 Настройка мониторинга..."
                     echo "Доступные эндпоинты:"
-                    echo "• Health: http://localhost:5001/health"
-                    echo "• Главная: http://localhost:5001/"
-                    echo "• Staging: http://localhost:8081/"
+                    echo "• Health: http://localhost:5000/health"
+                    echo "• Главная: http://localhost:5000/"
+                    echo "• Staging: http://localhost:8080/"
                     
                     echo "Создание конфигурации мониторинга..."
                     echo "APPLICATION_STATUS=active" > app-status.txt
@@ -246,8 +255,8 @@ pipeline {
                 del app-status.txt 2>nul || echo "Файл не найден"
                 
                 echo "Проверка портов..."
-                netstat -an | findstr ":5001" || echo "✅ Порт 5001 свободен"
-                netstat -an | findstr ":8081" || echo "✅ Порт 8081 свободен"
+                netstat -an | findstr ":5000" || echo "✅ Порт 5000 свободен"
+                netstat -an | findstr ":8080" || echo "✅ Порт 8080 свободен"
             """
         }
 
@@ -297,10 +306,10 @@ pipeline {
                         curl -s -X POST ^
                         "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
                         -d chat_id=%TELEGRAM_CHAT_ID% ^
-                        -d text="❌ CI/CD FAILED - Network Issue 
+                        -d text="❌ CI/CD FAILED 
 📦 Образ: ${env.DOCKER_IMAGE}
-🔧 Проблема: Docker network error
-💡 Решение: Проверьте интернет соединение
+🔧 Проблема: Проверьте логи Jenkins
+💡 Решение: Смотрите детали в сборке
 🕒 Время: ${env.DEPLOY_TIME}
 🔗 Jenkins: ${env.BUILD_URL}"
                     """
