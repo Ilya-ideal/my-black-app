@@ -217,45 +217,46 @@ pipeline {
     }
 
     post {
-    always {
-        bat """
-            echo "ОЧИСТКА РЕСУРСОВ..."
-            docker stop enhanced-test-app 2>nul || echo "Тестовый контейнер не найден"
-            docker rm enhanced-test-app 2>nul || echo "Тестовый контейнер не найден"
-            docker stop staging-app 2>nul || echo "Staging контейнер не найден" 
-            docker rm staging-app 2>nul || echo "Staging контейнер не найден"
-            del app-status.txt 2>nul || echo "Файл не найден"
-        """
-    }
+        always {
+            bat """
+                echo "ОЧИСТКА РЕСУРСОВ..."
+                docker stop enhanced-test-app 2>nul || echo "Тестовый контейнер не найден"
+                docker rm enhanced-test-app 2>nul || echo "Тестовый контейнер не найден"
+                docker stop staging-app 2>nul || echo "Staging контейнер не найден" 
+                docker rm staging-app 2>nul || echo "Staging контейнер не найден"
+                del app-status.txt 2>nul || echo "Файл не найден"
+            """
+        }
 
-    success {
-        script {
-            withCredentials([
-                string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
-                string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
-            ]) {
-                bat """
-                    curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                    -d chat_id=%TELEGRAM_CHAT_ID% ^
-                    -d parse_mode=HTML ^
-                    -d text="<b>АВТОМАТИЧЕСКАЯ СБОРКА УСПЕШНА!</b>%0AОбраз: ${env.DOCKER_IMAGE}:${env.APP_VERSION}%0AВсе тесты пройдены.%0AStaging развернут.%0AВремя: ${env.DEPLOY_TIME}"
-                """
+        success {
+            script {
+                withCredentials([
+                    string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
+                    string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
+                ]) {
+                    bat """
+                        curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
+                        -d chat_id=%TELEGRAM_CHAT_ID% ^
+                        -d parse_mode=HTML ^
+                        -d text="<b>АВТОМАТИЧЕСКАЯ СБОРКА УСПЕШНА!</b>%0AОбраз: ${env.DOCKER_IMAGE}:${env.APP_VERSION}%0AВсе тесты пройдены.%0AStaging развернут.%0AВремя: ${env.DEPLOY_TIME}"
+                    """
+                }
             }
         }
-    }
 
-    failure {
-        script {
-            withCredentials([
-                string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
-                string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
-            ]) {
-                bat """
-                    curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                    -d chat_id=%TELEGRAM_CHAT_ID% ^
-                    -d parse_mode=HTML ^
-                    -d text="<b>❌ CI/CD FAILED</b>%0AОбраз: ${env.DOCKER_IMAGE}%0AПроверьте логи Jenkins%0AВремя: ${env.DEPLOY_TIME}"
-                """
+        failure {
+            script {
+                withCredentials([
+                    string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
+                    string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
+                ]) {
+                    bat """
+                        curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
+                        -d chat_id=%TELEGRAM_CHAT_ID% ^
+                        -d parse_mode=HTML ^
+                        -d text="<b>❌ CI/CD FAILED</b>%0AОбраз: ${env.DOCKER_IMAGE}%0AПроверьте логи Jenkins%0AВремя: ${env.DEPLOY_TIME}"
+                    """
+                }
             }
         }
     }
