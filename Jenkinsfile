@@ -228,34 +228,35 @@ pipeline {
             """
         }
 
-    success {
-        script {
-            withCredentials([
-                string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
-                string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
-            ]) {
-                bat """
-                    curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                    -d chat_id=%TELEGRAM_CHAT_ID% ^
-                    -d parse_mode=HTML ^
-                    -d text="<b>✅ AUTOMATED BUILD SUCCESS!</b>%%0AImage: ${env.DOCKER_IMAGE}:${env.APP_VERSION}%%0AAll tests passed.%%0AStaging deployed.%%0ATime: ${env.DEPLOY_TIME}"
-                """
+        success {
+            script {
+                withCredentials([
+                    string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
+                    string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
+                ]) {
+                    bat """
+                        curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
+                        -d chat_id=%TELEGRAM_CHAT_ID% ^
+                        -d parse_mode=HTML ^
+                        -d text="<b>✅ AUTOMATED BUILD SUCCESS!</b>%%0A📦 Image: ${env.DOCKER_IMAGE}:${env.APP_VERSION}%%0A✅ All tests passed%%0A🌐 Staging deployed%%0A🕒 Time: ${env.DEPLOY_TIME}"
+                    """
+                }
             }
         }
-    }
 
-    failure {
-        script {
-            withCredentials([
-                string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
-                string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
-            ]) {
-                bat """
-                    curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
-                    -d chat_id=%TELEGRAM_CHAT_ID% ^
-                    -d parse_mode=HTML ^
-                    -d text="<b>❌ CI/CD FAILED</b>%%0AImage: ${env.DOCKER_IMAGE}%%0ACheck Jenkins logs%%0ATime: ${env.DEPLOY_TIME}"
-                """
+        failure {
+            script {
+                withCredentials([
+                    string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
+                    string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
+                ]) {
+                    bat """
+                        curl -s -X POST "https://api.telegram.org/bot%TELEGRAM_BOT_TOKEN%/sendMessage" ^
+                        -d chat_id=%TELEGRAM_CHAT_ID% ^
+                        -d parse_mode=HTML ^
+                        -d text="<b>❌ CI/CD FAILED</b>%%0A📦 Image: ${env.DOCKER_IMAGE}%%0A🔍 Check Jenkins logs%%0A🕒 Time: ${env.DEPLOY_TIME}"
+                    """
+                }
             }
         }
     }
